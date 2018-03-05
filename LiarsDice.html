@@ -1,0 +1,73 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Liars Dice</title>
+    <link href="https://fonts.googleapis.com/css?family=Roboto" rel="stylesheet">
+    <script src="LiarsDice.js"></script>
+    <style>
+        html {
+            font-family: 'Roboto', sans-serif;
+        }
+        button {
+            padding: 5px 10px;
+            background-color: #8c66ac;
+            color: white;
+            border: 1px solid black;
+        }
+        button:active {
+            background-color: #fbaf5e;
+        }
+        button:disabled {
+            background-color: grey;
+        }
+        canvas {
+            background-color: #000000;
+            margin-top: 5px;
+            margin-bottom: 5px;
+        }
+        #page-content {
+            width: 800px;
+            padding: 5px;
+            margin: 0 auto;
+            border: 2px solid black;
+        }
+    </style>
+</head>
+<body>
+    <div id="page-content">
+        <!--Body Title, title of Game-->
+        <h1 style="text-align: center;">Liar's Dice</h1>
+        <button id="startGame">Start Game</button>
+        <button id="redraw">Redraw Canvas</button>
+        <!--The canvas element. Used for displaying dice to the player.-->
+        <canvas id="diceGame" width="800" height="600"></canvas>
+        <button id="placeBid">Place Bid</button>
+        <input id="bidCounter" type="number" value="1">
+        <select id="bidType">
+            <option value="Ones">Ones</option>
+            <option value="Twos">Twos</option>
+            <option value="Threes">Threes</option>
+            <option value="Fours">Fours</option>
+            <option value="Fives">Fives</option>
+            <option value="Sixes">Sixes</option>
+        </select>
+        <button id="challengeBid">Challenge Previous Bid</button>
+        <div id="gameOutput" style="width: 785px; height: 250px; border: 2px solid black; margin-top: 5px; padding: 5px; overflow-y: scroll; background-color: black;">
+        </div>
+        <p>
+            <h2>How to Play:</h2>
+            Click the "Start Game" button to begin playing.
+            <ol>
+                <li>To begin each round, all players roll their dice simultaneously.</li>
+                <li>The first player then states a bid consisting of a face ("1's", "5's", etc.) and a quantity. The quantity represents the player's guess as to how many of each face have been rolled by all the players at the table, including themselves. For example, a player might bid "five 2's."</li>
+                <li>Each subsequent player can either then make a higher bid of the same face (e.g., "six 2's"), or they can challenge the previous bid.</li>
+                <li>If the player challenges the previous bid, all players reveal their dice. If the bid is matched or exceeded, the bidder wins. Otherwise the challenger wins. If the bidder loses, they remove one of their dice from the game by placing it in front of their dice cup.</li>
+                <li>The loser of the previous round begins the next round.</li>
+                <li>In the event that the game comes down to two players with only a single dice each, bids are then made on the sum of both dice instead the quantity of faces rolled.</li>
+                <li>The winner of the game is the last player to have any dice remaining.</li>
+            </ol>
+        </p>
+    </div>
+</body>
+</html>
