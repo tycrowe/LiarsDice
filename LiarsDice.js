@@ -228,7 +228,7 @@ window.onload = function() {
                 return 4;
             case "Fives":
                 return 5;
-            case "Six":
+            case "Sixes":
                 return 6;
         }
     }
