@@ -1,27 +1,127 @@
-const dieTypes = [
-    "Ones",
-    "Twos",
-    "Threes",
-    "Fours",
-    "Fives",
-    "Sixes"
-];
 window.onload = function() {
-    let diceInPlay = 0;
-    let allDice = [];
-    let gameOutput = document.getElementById("gameOutput");
-    function writeMessageToOutput(prefix, message, color) {
+    /*  Game Controls
+    *       startGameButton     - self explanatory
+    *       placeBidButton      - uses the inputs id[bidCounter and bidType] to get the human's bid.
+    *       challengeBidButton  - challenges the previous bid made by the last player.
+    * */
+    let startGameButton = document.getElementById("startGame");
+    let placeBidButton = document.getElementById("placeBid");
+    let challengeBidButton = document.getElementById("challengeBid");
+    let nextTurnButton = document.getElementById("nextTurn");
+    let nextRoundButton = document.getElementById("nextRound");
+    placeBidButton.disabled = true;
+    challengeBidButton.disabled = true;
+    nextTurnButton.disabled = true;
+    nextRoundButton.disabled = true;
+
+    // Inputs
+    let inputBidSize = document.getElementById("bidCounter");
+    let inputBidType = document.getElementById("bidType");
+
+    // Collections
+    let allPlayers = [];                // Holds all the players in the game.
+    const dieTypes = [
+        "Ones",
+        "Twos",
+        "Threes",
+        "Fours",
+        "Fives",
+        "Sixes"
+    ];
+    const randomPlayers = [
+        new Player("Professor Plum", "#511587"),
+        new Player("Colonel Mustard", "#fff51e"),
+        new Player("Dante", "#be3f00"),
+        new Player("Mrs. White", "#c0c0c0"),
+        new Player("Dr. Lollipop", "#4ffff3"),
+        new Player("Butler Smith", "#ff7f19"),
+        new Player("Tim Stevens", "#6091ff"),
+        new Player("Roger Blank", "#90ff3f"),
+        new Player("Victoria Gates", "#50ffdb"),
+        new Player("Hansel Olsen", "#ff3fb6"),
+        new Player("Xavier Island", "#5687ff"),
+        new Player("Miss Scarlet", "#ff007e"),
+        new Player("Arthur Blast", "#ffa275"),
+        new Player("Quail Tail", "#e6ff00"),
+        new Player("Michael Poppins", "#973fff"),
+        new Player("Clyde Withers", "#606060"),
+        new Player("Mr. ???", "#570300"),
+        new Player("Agent O", "#00ffab"),
+        new Player("Loyd Evans", "#ff4600"),
+        new Player("Ms. Apple", "#ff0600"),
+        new Player("Amy Pith", "#ff0043")
+    ];
+
+    // Game console and associated methods.
+    let gameConsole = document.getElementById("gameOutput");
+
+    // Canvas objects
+    let canvas = document.getElementById("diceGame");       // The canvas to draw on.
+    let ctx = canvas.getContext("2d");                      // The context of the canvas to use.
+
+    // Booleans
+    let hideDiceFromHuman = true;                           // Sets if the dice are being hidden from the player or not.
+    let gameOngoing = false;                                // Game active.
+    let waiting = false;
+
+    // Game objects
+    let curPlayer = null;
+    let previousBid = null;
+    let numOfDiceInPlay = 0;
+
+    /* Helper methods */
+    function shuffle(array) {
+        let currentIndex = array.length, temporaryValue, randomIndex;
+
+        // While there remain elements to shuffle...
+        while (0 !== currentIndex) {
+
+            // Pick a remaining element...
+            randomIndex = Math.floor(Math.random() * currentIndex);
+            currentIndex -= 1;
+
+            // And swap it with the current element.
+            temporaryValue = array[currentIndex];
+            array[currentIndex] = array[randomIndex];
+            array[randomIndex] = temporaryValue;
+        }
+
+        return array;
+    }
+
+    /**
+     * Writes to the "console" on the web page.
+     * @param prefix    The prefix of the message, usually the name of the sender.
+     * @param message   The message to be sent to the console.
+     * @param color     The color of the message.
+     */
+    function writeConsole(prefix, message, color) {
         this.prefix = prefix || '> ';
         this.message = message || 'null';
         this.color = color || "#000000";
-        gameOutput.innerHTML += "<span style='color: " + this.color + "'>" + (this.prefix + this.message) + "</span><br>";
-        gameOutput.scrollTop = gameOutput.scrollHeight;
+        gameConsole.innerHTML += "<span style='color: " + this.color + "'>" + (this.prefix + this.message) + "</span><br>";
+        gameConsole.scrollTop = gameConsole.scrollHeight;
     }
 
+    /**
+     * Clears the "console" by setting the inner html to an empty string.
+     */
+    function clearConsole() {
+        gameConsole.innerHTML = "";
+    }
+
+    /**
+     * Dice object, used for holding the color for drawing and the side it's currently on.
+     * @constructor
+     */
     function Dice() {
         this.dieColor = "Black";
         this.currentSide = 1;
     }
+
+    /**
+     * Roll function, sets the current side to a random number between one and six
+     */
     Dice.prototype.roll = function () {
         this.currentSide = Math.floor((Math.random() * 6) + 1);
         switch (this.currentSide) {
@@ -46,39 +146,78 @@ window.onload = function() {
         }
     };
 
+    /**
+     * Creates a player object, used for the majority of the game.
+     * @param playerName        The name of the player attached to this object.
+     * @param playerColor       The color of the player - appears this color on canvas.
+     * @param isHuman           Details if the player is human or not.
+     * @constructor
+     *      The name of the player.             Default = null;
+     *      The player's color.                 Default = "#FFFFFF";
+     *      If the player is human or not.      Default = false;
+     */
     function Player(playerName, playerColor, isHuman) {
-        this.name = playerName;
+        this.name = playerName || null;
+        this.isHuman = isHuman || false;
+        this.playerColor = playerColor || "#FFFFFF";
         this.hand = [];
         this.diceLeft = 5;
-        this.isHuman = isHuman;
         this.isInGame = true;
-        this.playerColor = playerColor;
     }
+
+    /**
+     * Clears the hand of the player, empties the dice.
+     */
     Player.prototype.clearHand = function() {
         this.hand = [];
     };
+    /**
+     * Builds a hand based on how many dice are left for the player.
+     * Also adds the created dice to the allDice array in the collections.
+     */
     Player.prototype.buildHand = function () {
+        this.clearHand();
         for (let i = 0; i < this.diceLeft; i++) {
             this.hand.push(new Dice());
-            allDice.push(this.hand[i]);
-            diceInPlay++;
+            numOfDiceInPlay++;
         }
     };
+    /**
+     * Rolls all dice in the hand based on the amount of shakes requested by the input.
+     * Updates the value in the allDice field.
+     * @param numShakes         The number of "shakes" the player will perform to achieve the dice output.
+     */
     Player.prototype.rollHand = function (numShakes) {
-        for (let i = 0; i < numShakes; i++) {
+        this.numShakes = numShakes || 3;
+        for (let i = 0; i < this.numShakes; i++) {
             for (let j = 0; j < this.hand.length; j++) {
                 this.hand[j].roll();
             }
         }
     };
 
+    /**
+     * The previous bid made by the last player to go, if they choose to make a bid.
+     * @param holder            The bid's holder
+     * @param type              The bid's type, can be ones, twos, threes, fours, fives or sixes.
+     * @param count             The size of the bid.
+     * @constructor
+     *      The player object as the holder.
+     *      The bid type as a string.
+     *      The size of the bid.
+     */
     function Bid(holder, type, count) {
         this.holder = holder;
         this.type = type || "Ones";
         this.count = count || 1;
     }
-    Bid.prototype.parseType = function () {
-        switch(this.type) {
+
+    /**
+     * Converts the word type into the number representation.
+     * @returns {number}
+     */
+    function parseType(word) {
+        switch(word) {
             case "Ones":
                 return 1;
             case "Twos":
@@ -92,67 +231,308 @@ window.onload = function() {
             case "Six":
                 return 6;
         }
+    }
+
+    /*
+        BEGIN FORM INPUT
+     */
+    startGameButton.onclick = function() {
+        startGame(false, 4);
+        startGameButton.disabled = true;
+    };
+    placeBidButton.onclick = function () {
+        if(validateBidCountInput()) {
+            placeBid();
+        }
+    };
+    challengeBidButton.onclick = function () {
+        challengePreviousBid();
+    };
+    nextTurnButton.onclick = function() {
+        doAITurn();
+    };
+    nextRoundButton.onclick = function () {
+        newRound();
     };
 
-    let allPlayers = [];
-    let currentPlayer = null;
-    let previousBid = null;
-    let canvas = document.getElementById("diceGame");
-    let ctx = canvas.getContext("2d");
-    let hideDice = true;
-    function setupGame(playerFirst) {
-        // Create the players for the game.
-        allPlayers.push(
-            new Player("You (Human)", "#ffffff", true),
-            new Player("Professor Plum", "#9415ff", false),
-            new Player("Mrs. Peacock", "#2b4dff", false),
-            new Player("Colonel Mustard", "#fff51e", false)
-        );
-        allPlayers.forEach(function(player) {
-            player.buildHand(5);
-            player.rollHand(3);
-            writeMessageToOutput(player.name, " joined the game.", player.playerColor);
-        });
-        if(playerFirst)
-            for (let i = 0; i < allPlayers.length; i++) {
-                if(allPlayers[i].isHuman) {
-                    currentPlayer = allPlayers[i];
+    // Event catchers
+    inputBidSize.onchange = function() {
+        validateBidCountInput()
+    };
+
+    function validateBidCountInput() {
+        if(previousBid === null) {
+            let count = +inputBidSize.value;
+            if(count <= 0 || count > +numOfDiceInPlay) {
+                if(count <= 0) {
+                    writeConsole("Game-Director > ", "Number of dice must be greater than zero.", "#ff0a00");
+                    inputBidSize.value = 1;
+                    return false;
+                }
+                else if(count > +numOfDiceInPlay) {
+                    writeConsole("Game-Director > ", "Number of dice cannot be greater than the number of dice in play.", "#ff0a00");
+                    inputBidSize.value = numOfDiceInPlay;
+                    return false;
                 }
             }
+            return true;
+        } else {
+            let count = +inputBidSize.value;
+            if(count < previousBid.count || count > +numOfDiceInPlay) {
+                if(count < previousBid.count) {
+                    writeConsole("Game-Director > ", "Number of dice must be equal to or greater than the previous bid's count.", "#ff0a00");
+                    inputBidSize.value = previousBid.count;
+                    return false;
+                }
+                else if(count > +numOfDiceInPlay) {
+                    writeConsole("Game-Director > ", "Number of dice cannot be greater than the number of dice in play.", "#ff0a00");
+                    inputBidSize.value = numOfDiceInPlay;
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
+
+    /**
+     * Builds and starts the game. Adds the players, builds the hands, and starts the game.
+     * @param randomOrder       Jumble the allPlayers collection and then draw.
+     * @param maxPlayerCount    The maximum amount of players for this game. Min = 2, Max = 4. Default = 4;
+     */
+    function startGame(randomOrder, maxPlayerCount) {
+        if(maxPlayerCount > 0 && maxPlayerCount <= 4)
+            this.maxPlayerCount = maxPlayerCount;
         else
-            currentPlayer = allPlayers[Math.floor(Math.random() * allPlayers.length)];
-        writeMessageToOutput(currentPlayer.name, " begins the game.", currentPlayer.playerColor);
-        executeTurn();
+            this.maxPlayerCount = 4;
+        allPlayers.push(new Player("You", "#ffffff", true));
+        this.maxPlayerCount -= 1;
+        for (let i = 0; i < this.maxPlayerCount; i++) {
+            // Guarantee uniqueness.
+            let selectedPlayer = randomPlayers[Math.floor(Math.random() * randomPlayers.length)];
+            while(allPlayers.indexOf(selectedPlayer) !== -1) {
+                selectedPlayer = randomPlayers[Math.floor(Math.random() * randomPlayers.length)]
+            }
+            allPlayers.push(randomPlayers[Math.floor(Math.random() * randomPlayers.length)]);
+        }
+        if(randomOrder && this.maxPlayerCount > 2) shuffle(allPlayers);
+        gameOngoing = true;
+        curPlayer = allPlayers[0];
+        newRound();
     }
 
-    function resetGame() {
-        allDice = [];
-        diceInPlay = 0;
-        previousBid = new Bid(null, null, 1);
-        hideDice = true;
-        updateScene();
-        allPlayers.forEach(function(player) {
-            player.clearHand();
-            player.buildHand();
-            player.rollHand(3);
-        });
-        updateScene();
-        checkGame();
-        gameOutput.innerHTML = "";
-        writeMessageToOutput("GameMaster> ", currentPlayer.name + " starts the next round.", "#ff0a00");
-        setTimeout(executeTurn, 8000);
-    }
-
-    function updateScene() {
-        ctx.clearRect(0, 0, canvas.width, canvas.height);
-        ctx.lineWidth = 1;
-        ctx.font = "25px Arial";
-        ctx.save();
+    /**
+     * Starts a new round, rolls the entire hand of all players.
+     */
+    function newRound() {
+        hideDiceFromHuman = true;
+        drawGame();
         for (let i = 0; i < allPlayers.length; i++) {
-            let playerHand = allPlayers[i].hand;
-            for (let j = 0; j < playerHand.length; j++) {
-                if(hideDice) {
-                    if(i === 0) {
+            allPlayers[i].buildHand();
+            allPlayers[i].rollHand();
+        }
+        drawGame();
+        nextRoundButton.disabled = true;
+        clearConsole();
+        if(curPlayer !== null) {
+            if(!curPlayer.isHuman) {
+                nextTurnButton.disabled = false;
+            } else {
+                placeBidButton.disabled = false;
+                challengeBidButton.disabled = previousBid === null;
+                nextTurnButton.disabled = true;
+            }
+        }
+    }
+
+    /**
+     * Places a bid based on if the current player is AI or human.
+     */
+    function placeBid() {
+        if(curPlayer.isHuman) {
+            // Current player is human, use the html5 forms as input
+            previousBid = new Bid(
+                curPlayer,
+                inputBidType.value,
+                +inputBidSize.value
+            );
+            waiting = false;
+            writeConsole(previousBid.holder.name, " claims there are " + previousBid.count + " " + previousBid.type, curPlayer.playerColor);
+            nextTurn();
+        } else {
+            // Current player is AI, use randoms!
+            if(previousBid !== null) {
+                previousBid = new Bid(
+                    curPlayer,
+                    dieTypes[Math.floor(Math.random() * dieTypes.length)],
+                    Math.floor(Math.random() * ((+previousBid.count + 1) - +previousBid.count + 1)) + +previousBid.count
+                );
+            } else {
+                let selectedType = dieTypes[Math.floor(Math.random() * dieTypes.length)];
+                let count = 0;
+                for (let i = 0; i < curPlayer.hand.length; i++) {
+                    if(curPlayer.hand[i].currentSide === parseType(selectedType)) {
+                        count++;
+                    }
+                }
+                previousBid = new Bid(
+                    curPlayer,
+                    selectedType,
+                    Math.floor(Math.random() * ((count + 3) - count)) + count
+                );
+            }
+            writeConsole(previousBid.holder.name, " claims there are " + previousBid.count + " " + previousBid.type, curPlayer.playerColor);
+            nextTurn();
+        }
+    }
+
+    /**
+     * Challenges the previous bid.
+     * @returns {boolean}
+     */
+    function challengePreviousBid() {
+        if(previousBid !== null) {
+            placeBidButton.disabled = true;
+            challengeBidButton.disabled = true;
+            // A bid has been challenged.
+            if(curPlayer.isHuman)
+                writeConsole(curPlayer.name, " have challenged the previous bid made by " + previousBid.holder.name + "!", curPlayer.playerColor);
+            else
+                writeConsole(curPlayer.name, " has challenged the previous bid made by " + previousBid.holder.name + "!", curPlayer.playerColor);
+            hideDiceFromHuman = false;
+            drawGame();
+            let diceCount = 0;
+            for (let i = 0; i < allPlayers.length; i++) {
+                for (let j = 0; j < allPlayers[i].hand.length; j++) {
+                    if(parseType(previousBid.type) === allPlayers[i].hand[j].currentSide) {
+                        diceCount++;
+                    }
+                }
+            }
+            console.log(diceCount);
+            if(diceCount >= previousBid.count) {
+                // Bidder wins, challenger loses.
+                writeConsole(curPlayer.name, "'s challenge has failed! The bidder is safe!", "#ff0001");
+            } else {
+                // Challenger wins, bidder loses
+                writeConsole(curPlayer.name, "'s challenge has succeeded! " + previousBid.holder.name + " will now lose one dice!", "#00ff05");
+                previousBid.holder.diceLeft--;
+                curPlayer = previousBid.holder;
+            }
+            checkGame();
+            previousBid = null;
+            nextTurnButton.disabled = true;
+            nextRoundButton.disabled = false;
+        } else {
+            console.log("Previous bid was null. Cannot challenge a null bid.");
+            return false;
+        }
+    }
+
+    function doAITurn() {
+        // First, we're going to want to see if the AI should challenge the previous bid.
+        // This is done by taking the amount of dice left in play and what our current head bid would need to be.
+        // Typically, someone will challenge a bid if the amount is greater than their perceived hand.
+        if(previousBid !== null) {
+            if (previousBid.holder !== null && Math.floor(Math.random() * numOfDiceInPlay) % curPlayer.hand.length === 0) {
+                // With 20 dice in play and the player has 5 dice, there is a 25% chance the AI will challenge the bid. (5, 10, 15, 20)
+                // Now, the AI will check if the number bet is equal to the previous bid. If it is, the challenge is forfeited. Otherwise, challenge the bid.
+                let dieCount = 0;
+                for (let i = 0; i < curPlayer.hand.length; i++) {
+                    if (curPlayer.hand[i].currentSide === parseType(previousBid.type)) {
+                        dieCount++;
+                    }
+                }
+                if (dieCount !== previousBid.count && previousBid.holder !== curPlayer) {
+                    // Challenge!
+                    challengePreviousBid();
+                } else {
+                    placeBid();
+                }
+            } else {
+                placeBid();
+            }
+        } else {
+            placeBid();
+        }
+    }
+
+    /**
+     * Advances the turn to the next player. Controlled by the player for playability.
+     */
+    function nextTurn() {
+        let playerIndex = allPlayers.indexOf(curPlayer);
+        if(playerIndex + 1 > allPlayers.length - 1)
+            curPlayer = allPlayers[0];
+        else
+            curPlayer = allPlayers[playerIndex + 1];
+        if(curPlayer.isHuman) {
+            placeBidButton.disabled = false;
+            challengeBidButton.disabled = previousBid === null;
+            nextTurnButton.disabled = true;
+        } else {
+            placeBidButton.disabled = true;
+            challengeBidButton.disabled = true;
+            nextTurnButton.disabled = false;
+        }
+        checkGame();
+    }
+
+    /**
+     * Checks the current status of the game and returns the amount of people left.
+     * @returns {number}
+     */
+    function checkGame() {
+        let numPlayersLeft = allPlayers.length;
+        for (let i = 0; i < allPlayers.length; i++) {
+            if(allPlayers[i].hand.length === 0) {
+                let player = allPlayers[i];
+                allPlayers.splice(i, 1);
+                numPlayersLeft--;
+                player.isInGame = false;
+                drawGame();
+                if(previousBid.holder === player)
+                    previousBid = null;
+                writeConsole(player.name, " has been eliminated.", player.playerColor);
+            }
+        }
+        if(numPlayersLeft === 1) {
+            writeConsole(allPlayers[0].name, " has one the game!", "#fcff1b")
+        }
+        return numPlayersLeft;
+    }
+
+    /**
+     * Draws the game to the canvas.
+     * @PreCondition: allPlayers array cannot be empty.
+     */
+    function drawGame() {
+        if(allPlayers.length > 0) {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            ctx.lineWidth = 1;
+            ctx.font = "25px Arial";
+            ctx.save();
+            for (let i = 0; i < allPlayers.length; i++) {
+                let playerHand = allPlayers[i].hand;
+                for (let j = 0; j < playerHand.length; j++) {
+                    if(hideDiceFromHuman) {
+                        if(allPlayers[i].isHuman) {
+                            ctx.beginPath();
+                            ctx.fillStyle = playerHand[j].dieColor;
+                            ctx.rect((j + 1) * 55, (i + 1) * 100, 50, 50);
+                            ctx.fill();
+                            ctx.stroke();
+
+                            ctx.beginPath();
+                            ctx.fillStyle = "#000000";
+                            ctx.fillText(playerHand[j].currentSide, ((j + 1) * 55) + 18, ((i + 1) * 100) + 32);
+                        } else {
+                            ctx.beginPath();
+                            ctx.fillStyle = "#a1a1a1";
+                            ctx.rect((j + 1) * 55, (i + 1) * 100, 50, 50);
+                            ctx.fill();
+                            ctx.stroke();
+                        }
+                    } else {
                         ctx.beginPath();
                         ctx.fillStyle = playerHand[j].dieColor;
                         ctx.rect((j + 1) * 55, (i + 1) * 100, 50, 50);
@@ -162,227 +542,14 @@ window.onload = function() {
                         ctx.beginPath();
                         ctx.fillStyle = "#000000";
                         ctx.fillText(playerHand[j].currentSide, ((j + 1) * 55) + 18, ((i + 1) * 100) + 32);
-                    } else {
-                        ctx.beginPath();
-                        ctx.fillStyle = "#a1a1a1";
-                        ctx.rect((j + 1) * 55, (i + 1) * 100, 50, 50);
-                        ctx.fill();
-                        ctx.stroke();
-                    }
-                } else {
-                    ctx.beginPath();
-                    ctx.fillStyle = playerHand[j].dieColor;
-                    ctx.rect((j + 1) * 55, (i + 1) * 100, 50, 50);
-                    ctx.fill();
-                    ctx.stroke();
-
-                    ctx.beginPath();
-                    ctx.fillStyle = "#000000";
-                    ctx.fillText(playerHand[j].currentSide, ((j + 1) * 55) + 18, ((i + 1) * 100) + 32);
-                }
-            }
-            ctx.restore();
-
-            ctx.beginPath();
-            ctx.fillStyle = allPlayers[i].playerColor;
-            ctx.fillText(allPlayers[i].name, 25, ((i + 1) * 100) - 5);
-        }
-    }
-
-    let wait = true;
-    function executeTurn() {
-        updateScene();
-        if(currentPlayer !== null) {
-            if(currentPlayer.isHuman) {
-                // Wait for player to hit "Place Bid" button or "Challenge Bid"
-                bidPlaceButton.disabled = false;
-                if(previousBid !== null) {
-                    if(previousBid.holder !== null) {
-                        if(previousBid.holder !== currentPlayer)
-                            bidChallengeButton.disabled = false;
-                    } else {
-                        bidChallengeButton.disabled = true;
                     }
                 }
-                if(wait) {
-                    console.log("Waiting on user...");
-                    setTimeout(executeTurn, 500);
-                } else {
-                    bidPlaceButton.disabled = true;
-                    bidChallengeButton.disabled = true;
-                    setNextPlayerTurn();
-                    checkGame();
-                    executeTurn();
-                }
-            } else {
-                window.setTimeout(executeAITurn, 5000);
-            }
-        } else
-            console.log("Current player was null!!!");
-    }
+                ctx.restore();
 
-    function executeAITurn() {
-        // First, we're going to want to see if the AI should challenge the previous bid.
-        // This is done by taking the amount of dice left in play and what our current head bid would need to be.
-        console.log("Executing AI turn for " + currentPlayer.name);
-        // Typically, someone will challenge a bid if the amount is greater than their perceived hand.
-        if(previousBid.holder !== null && Math.floor(Math.random() * diceInPlay) % currentPlayer.hand.length === 0) {
-            console.log("AI " + currentPlayer.name + " may challenge the previous bid.");
-            // With 20 dice in play and the player has 5 dice, there is a 25% chance the AI will challenge the bid. (5, 10, 15, 20)
-            // Now, the AI will check if the number bet is equal to the previous bid. If it is, the challenge is forfeited. Otherwise, challenge the bid.
-            let dieCount = 0;
-            for (let i = 0; i < currentPlayer.hand.length; i++) {
-                if(currentPlayer.hand[i].currentSide === previousBid.parseType()) {
-                    dieCount++;
-                }
+                ctx.beginPath();
+                ctx.fillStyle = allPlayers[i].playerColor;
+                ctx.fillText(allPlayers[i].name, 25, ((i + 1) * 100) - 5);
             }
-            if(dieCount !== previousBid.count && previousBid.holder !== currentPlayer) {
-                // Challenge!
-                console.log("AI " + currentPlayer.name + " WILL challenge the previous bid.");
-                writeMessageToOutput(currentPlayer.name, " has challenged the previous bid placed by " + previousBid.holder.name + "!", currentPlayer.playerColor);
-                challengePreviousBid();
-            } else {
-                console.log("AI " + currentPlayer.name + " decided not to challenge, they will place a bid instead.");
-                previousBid = new Bid(
-                    currentPlayer,
-                    dieTypes[Math.floor(Math.random() * dieTypes.length)],
-                    Math.floor(Math.random() * ((+previousBid.count + 1) - +previousBid.count + 1)) + +previousBid.count
-                );
-                writeMessageToOutput(previousBid.holder.name, " claims there are " + previousBid.count + " " + previousBid.type, currentPlayer.playerColor);
-                setNextPlayerTurn();
-                checkGame();
-                setTimeout(executeTurn, 3000);
-            }
-        } else {
-            // Place a bid greater than the previous count.
-            console.log("AI " + currentPlayer.name + " will place a bid.");
-            previousBid = new Bid(
-                currentPlayer,
-                dieTypes[Math.floor(Math.random() * dieTypes.length)],
-                Math.floor(Math.random() * ((+previousBid.count + 1) - +previousBid.count + 1)) + +previousBid.count
-            );
-            writeMessageToOutput(previousBid.holder.name, " claims there are " + previousBid.count + " " + previousBid.type, currentPlayer.playerColor);
-            setNextPlayerTurn();
-            checkGame();
-            setTimeout(executeTurn, 3000);
         }
     }
-
-    function challengePreviousBid() {
-        // A bid has been challenged! If the bid is matched or exceeded, the bidder is safe.
-        console.log("Executing challenge on bid. Made by " + currentPlayer.name + ".");
-
-        // Reveal all dice.
-        hideDice = false;
-        updateScene();
-
-        bidPlaceButton.disabled = true;
-        bidChallengeButton.disabled = true;
-
-        let dieCount = 0;
-        for (let i = 0; i < allDice.length; i++) {
-            if(allDice[i].currentSide === previousBid.count) {
-                dieCount++;
-            }
-        }
-        if(dieCount >= previousBid.count) {
-            console.log("The bidder is safe. The loser is " + currentPlayer.name + ".");
-            // Bidder is safe!
-            writeMessageToOutput(currentPlayer.name, " challenge has failed! The bidder is safe!", "#4cff00");
-            writeMessageToOutput("GameMaster> ", "The game will now reset in five seconds.", "#ff0a00");
-            setTimeout(resetGame, 5000);
-        } else {
-            console.log("The challenger wins. The loser is " + previousBid.holder.name + ". They will start the next round.");
-            // Challenger wins!
-            writeMessageToOutput(currentPlayer.name, " challenge has succeeded!", "#ff5d00");
-            writeMessageToOutput("GameMaster> ", previousBid.holder.name + " will now lose one dice.", "#ff0a00");
-            previousBid.holder.diceLeft--;
-            currentPlayer = previousBid.holder;
-            setTimeout(resetGame, 5000);
-        }
-    }
-
-    function checkGame() {
-        let numPlayersLeft = allPlayers.length;
-        for (let i = 0; i < allPlayers.length; i++) {
-            if(allPlayers[i].hand.length === 0) {
-                let player = allPlayers[i];
-                allPlayers.splice(i, 1);
-                numPlayersLeft--;
-                player.isInGame = false;
-                writeMessageToOutput(player.name, " has been eliminated.", player.playerColor);
-                updateScene();
-            }
-        }
-        return numPlayersLeft;
-    }
-
-    function setNextPlayerTurn() {
-        let playerIndex = 0;
-        for (let i = 0; i < allPlayers.length; i++) {
-            if(currentPlayer === allPlayers[i]) {
-                playerIndex = i;
-                break;
-            }
-        }
-        if(playerIndex + 1 > allPlayers.length - 1)
-            currentPlayer = allPlayers[0];
-        else
-            currentPlayer = allPlayers[playerIndex + 1];
-        if(currentPlayer.isHuman) {
-            console.log("Current player has been set to the human. System will now wait for human input.");
-            wait = true;
-        } else
-            console.log("Current player is set to an AI. System will now execute normally.");
-        writeMessageToOutput(currentPlayer.name, " will now begin their turn.", currentPlayer.playerColor);
-    }
-
-    let startGameButton = document.getElementById("startGame");
-    startGameButton.onclick = function () {
-        setupGame(true);
-        updateScene();
-        startGameButton.disabled = true;
-    };
-
-    // Bid system components
-    let bidPlaceButton = document.getElementById("placeBid");
-    let bidCounter = document.getElementById("bidCounter");
-    let bidType = document.getElementById("bidType");
-    let bidChallengeButton = document.getElementById("challengeBid");
-    bidPlaceButton.disabled = true;
-    bidChallengeButton.disabled = true;
-    bidCounter.onchange = function () {
-        if(previousBid === null) {
-            if(bidCounter.value <= 0 || bidCounter.value > diceInPlay) {
-                bidCounter.value = 1;
-                writeMessageToOutput("GameMaster> ", "Number of dice in bid is invalid.", "#ff0a00");
-            }
-        } else {
-            if(+bidCounter.value <= previousBid.count || +bidCounter.value > diceInPlay) {
-                bidCounter.value = previousBid.count;
-                writeMessageToOutput("GameMaster> ", "Number of dice in bid is invalid.", "#ff0a00");
-            }
-        }
-    };
-    bidPlaceButton.onclick = function () {
-        previousBid = new Bid(currentPlayer, bidType.value, +bidCounter.value);
-        writeMessageToOutput(previousBid.holder.name, " claim there are " + previousBid.count + " " + previousBid.type, currentPlayer.playerColor);
-        wait = false;
-    };
-    bidChallengeButton.onclick = function() {
-        if(previousBid !== null) {
-            if(previousBid.holder !== currentPlayer)
-                challengePreviousBid();
-            else
-                writeMessageToOutput("GameMaster> ", "Cannot challenge own bid.", "#ff0a00");
-        } else
-            writeMessageToOutput("GameMaster> ", "Cannot challenge. No previous bid has been made.", "#ff0a00");
-    };
-
-    // Debug stuff
-    let redrawButton = document.getElementById("redraw");
-    redrawButton.onclick = function () {
-        updateScene();
-    };
-
-}
+};
